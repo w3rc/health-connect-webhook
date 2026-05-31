@@ -6,6 +6,7 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import com.hcwebhook.app.sync.SyncQueueWorker
 import java.util.concurrent.TimeUnit
 
 class HCWebhookApplication : Application() {
@@ -50,7 +51,7 @@ class HCWebhookApplication : Application() {
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .build()
 
-        val syncWorkRequest = PeriodicWorkRequestBuilder<SyncWorker>(
+        val syncWorkRequest = PeriodicWorkRequestBuilder<SyncQueueWorker>(
             repeatInterval = syncIntervalMinutes.toLong(),
             repeatIntervalTimeUnit = TimeUnit.MINUTES
         )

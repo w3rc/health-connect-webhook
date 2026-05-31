@@ -17,8 +17,10 @@ object RateLimit {
      * Health Connect providers / wrapped exceptions.
      */
     fun isRateLimited(e: Throwable): Boolean {
-        (e as? android.health.connect.HealthConnectException)?.let {
-            return it.errorCode == android.health.connect.HealthConnectException.ERROR_RATE_LIMIT_EXCEEDED
+        // The typed platform exception only exists on API 34+; guard so older devices
+        // (and JVM unit tests, where SDK_INT == 0) fall through to message matching.
+        if (android.os.Build.VERSION.SDK_INT >= 34 && e is android.health.connect.HealthConnectException) {
+            return e.errorCode == android.health.connect.HealthConnectException.ERROR_RATE_LIMIT_EXCEEDED
         }
         return messageIndicatesRateLimit(e.message)
     }

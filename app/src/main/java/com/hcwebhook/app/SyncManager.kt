@@ -6,9 +6,11 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import java.time.Instant
@@ -25,6 +27,34 @@ class SyncManager(private val context: Context) {
 
     private val preferencesManager = PreferencesManager(context)
     private val healthConnectManager = HealthConnectManager(context)
+
+    // ── Resilient per-type sync engine hooks (see com.hcwebhook.app.sync) ──────────
+    // These reuse the proven read + serialize + post paths so the queue engine never
+    // re-derives the payload shape. Read one type incrementally and return just its
+    // payload fragment (the meta keys are added back once, at post time).
+    internal suspend fun readTypeFragment(
+        type: HealthDataType,
+        since: Instant?,
+        now: Instant,
+    ): Map<String, JsonElement> {
+        val healthData = healthConnectManager.readHealthData(
+            enabledTypes = setOf(type),
+            lastSyncTimestamps = mapOf(type to since),
+            end = now,
+        ).getOrThrow()
+        val obj = Json.parseToJsonElement(buildJsonPayload(healthData)).jsonObject
+        return obj.filterKeys { it != "timestamp" && it != "app_version" }
+    }
+
+    /** Wrap the merged per-type fragments with the meta envelope and POST once. */
+    internal suspend fun postMergedFragment(fragment: Map<String, Any?>): Result<Unit> {
+        val body = buildJsonObject {
+            put("timestamp", Instant.now().toString())
+            put("app_version", appVersionName)
+            fragment.forEach { (key, value) -> if (value is JsonElement) put(key, value) }
+        }
+        return WebhookManager(preferencesManager.getWebhookConfigs(), context).postData(body.toString())
+    }
 
     suspend fun getRealtimeJsonPayload(
         timeRangeDays: Int? = null,

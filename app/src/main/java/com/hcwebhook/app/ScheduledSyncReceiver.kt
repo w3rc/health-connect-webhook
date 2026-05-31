@@ -32,9 +32,10 @@ class ScheduledSyncReceiver : BroadcastReceiver() {
                 
                 CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
                     try {
-                        val syncManager = SyncManager(context)
-                        syncManager.performSync()
-                        
+                        // Run the resilient per-type queue instead of a one-shot performSync,
+                        // so a rate-limited type backs off and retries rather than failing the sync.
+                        com.hcwebhook.app.sync.SyncQueueWorker.enqueueNow(context)
+
                         // Reschedule the alarm for the next day
                         if (scheduleId != null) {
                             val preferencesManager = PreferencesManager(context)
